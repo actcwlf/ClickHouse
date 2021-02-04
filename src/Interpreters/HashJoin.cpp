@@ -535,7 +535,7 @@ namespace
             else
                 Inserter<Map, KeyGetter>::insertAll(join, map, key_getter, stored_block, i, pool);
         }
-        return map.getBufferSizeInBytes();
+        return map.getBufferSizeInCells();
     }
 
 
@@ -657,7 +657,7 @@ bool HashJoin::addJoinedBlock(const Block & source_block, bool check_limits)
             joinDispatch(kind, strictness, data->maps, [&](auto, auto strictness_, auto & map)
             {
                 size_t size = insertFromBlockImpl<strictness_>(*this, data->type, map, rows, key_columns, key_sizes, stored_block, null_map, data->pool);
-                used_flags.resize(size);
+                used_flags.resize(size + 1);
             });
         }
 

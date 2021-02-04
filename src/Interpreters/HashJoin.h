@@ -40,6 +40,7 @@ class JoinUsedFlags
 
     size_t size;
 public:
+    JoinUsedFlags() : size(0) {}
 
     void resize(size_t size_)
     {
