@@ -275,7 +275,7 @@ protected:
         size_t offset = 0;
         if constexpr (FindResult::has_offset)
         {
-            offset = data.offsetInternal(it);
+            offset = it ? data.offsetInternal(it) : 0;
         }
         if constexpr (has_mapped)
             return FindResult(it ? &it->getMapped() : nullptr, it != nullptr, offset);
