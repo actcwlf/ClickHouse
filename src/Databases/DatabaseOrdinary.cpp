@@ -172,7 +172,7 @@ void DatabaseOrdinary::loadStoredObjects(Context & context, bool has_force_resto
         auto create_query = query->as<const ASTCreateQuery &>();
         if (create_query.is_dictionary)
         {
-            tryAttachDictionary(query, *this, getMetadataPath() + name, context);
+            tryAttachDictionary(query, *this, getMetadataPath() + name);
 
             /// Messages, so that it's not boring to wait for the server to load for a long time.
             logAboutProgress(log, ++dictionaries_processed, total_dictionaries, watch);
