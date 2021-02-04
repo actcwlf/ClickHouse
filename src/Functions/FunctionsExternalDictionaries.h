@@ -1414,8 +1414,10 @@ private:
         }
 
         /// We're extracting the return type from the dictionary's config, without loading the dictionary.
-        const auto & attrubute = helper.getDictionaryStructure(dict_name).getAttribute(attr_name).type;
-        switch (attribute.type.idx)
+        const auto & attribute = helper.getDictionaryStructure(dict_name).getAttribute(attr_name).type;
+        
+        WhichDataType dt = attribute.type;
+        switch (dt.idx)
         {
             case TypeIndex::String:
             case TypeIndex::FixedString:
@@ -1538,82 +1540,74 @@ private:
             throw Exception{"Illegal type " + arguments[2].type->getName() + " of third argument of function " + getName()
                 + ", must be UInt64 or tuple(...).", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT};
 
-        auto dict = helper.getDictionary(dict_name);
-        const DictionaryStructure & structure = dict->getStructure();
+        /// We're extracting the return type from the dictionary's config, without loading the dictionary.
+        const auto & attribute = helper.getDictionaryStructure(dict_name).getAttribute(attr_name).type;
+        
+        auto arg_type = arguments[3].type;
+        WhichDataType dt = attribute.type;
 
-        for (const auto idx : ext::range(0, structure.attributes.size()))
+        if ((arg_type->getTypeId() != dt.idx) || (dt.isStringOrFixedString() && !isString(arg_type)))
+            throw Exception{"Illegal type " + arg_type->getName() + " of fourth argument of function " + getName() +
+                ", must be " + getTypeName(dt.idx) + ".", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT};
+
+        switch (dt.idx)
         {
-            const DictionaryAttribute & attribute = structure.attributes[idx];
-            if (attribute.name == attr_name)
-            {
-                auto arg_type = arguments[3].type;
-                WhichDataType dt = attribute.type;
-
-                if ((arg_type->getTypeId() != dt.idx) || (dt.isStringOrFixedString() && !isString(arg_type)))
-                    throw Exception{"Illegal type " + arg_type->getName() + " of fourth argument of function " + getName() +
-                        ", must be " + getTypeName(dt.idx) + ".", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT};
-
-                switch (dt.idx)
-                {
-                    case TypeIndex::String:
-                        impl = FunctionDictGetStringOrDefault::create(context);
-                        break;
-                    case TypeIndex::UInt8:
-                        impl = FunctionDictGetUInt8OrDefault::create(context);
-                        break;
-                    case TypeIndex::UInt16:
-                        impl = FunctionDictGetUInt16OrDefault::create(context);
-                        break;
-                    case TypeIndex::UInt32:
-                        impl = FunctionDictGetUInt32OrDefault::create(context);
-                        break;
-                    case TypeIndex::UInt64:
-                        impl = FunctionDictGetUInt64OrDefault::create(context);
-                        break;
-                    case TypeIndex::Int8:
-                        impl = FunctionDictGetInt8OrDefault::create(context);
-                        break;
-                    case TypeIndex::Int16:
-                        impl = FunctionDictGetInt16OrDefault::create(context);
-                        break;
-                    case TypeIndex::Int32:
-                        impl = FunctionDictGetInt32OrDefault::create(context);
-                        break;
-                    case TypeIndex::Int64:
-                        impl = FunctionDictGetInt64OrDefault::create(context);
-                        break;
-                    case TypeIndex::Float32:
-                        impl = FunctionDictGetFloat32OrDefault::create(context);
-                        break;
-                    case TypeIndex::Float64:
-                        impl = FunctionDictGetFloat64OrDefault::create(context);
-                        break;
-                    case TypeIndex::Date:
-                        impl = FunctionDictGetDateOrDefault::create(context);
-                        break;
-                    case TypeIndex::DateTime:
-                        impl = FunctionDictGetDateTimeOrDefault::create(context);
-                        break;
-                    case TypeIndex::UUID:
-                        impl = FunctionDictGetUUIDOrDefault::create(context);
-                        break;
-                    case TypeIndex::Decimal32:
-                        impl = FunctionDictGetDecimal32OrDefault::create(context, getDecimalScale(*attribute.type));
-                        break;
-                    case TypeIndex::Decimal64:
-                        impl = FunctionDictGetDecimal64OrDefault::create(context, getDecimalScale(*attribute.type));
-                        break;
-                    case TypeIndex::Decimal128:
-                        impl = FunctionDictGetDecimal128OrDefault::create(context, getDecimalScale(*attribute.type));
-                        break;
-                    default:
-                        throw Exception("Unknown dictGetOrDefault type", ErrorCodes::UNKNOWN_TYPE);
-                }
-
-                return attribute.type;
-            }
+            case TypeIndex::String:
+                impl = FunctionDictGetStringOrDefault::create(context);
+                break;
+            case TypeIndex::UInt8:
+                impl = FunctionDictGetUInt8OrDefault::create(context);
+                break;
+            case TypeIndex::UInt16:
+                impl = FunctionDictGetUInt16OrDefault::create(context);
+                break;
+            case TypeIndex::UInt32:
+                impl = FunctionDictGetUInt32OrDefault::create(context);
+                break;
+            case TypeIndex::UInt64:
+                impl = FunctionDictGetUInt64OrDefault::create(context);
+                break;
+            case TypeIndex::Int8:
+                impl = FunctionDictGetInt8OrDefault::create(context);
+                break;
+            case TypeIndex::Int16:
+                impl = FunctionDictGetInt16OrDefault::create(context);
+                break;
+            case TypeIndex::Int32:
+                impl = FunctionDictGetInt32OrDefault::create(context);
+                break;
+            case TypeIndex::Int64:
+                impl = FunctionDictGetInt64OrDefault::create(context);
+                break;
+            case TypeIndex::Float32:
+                impl = FunctionDictGetFloat32OrDefault::create(context);
+                break;
+            case TypeIndex::Float64:
+                impl = FunctionDictGetFloat64OrDefault::create(context);
+                break;
+            case TypeIndex::Date:
+                impl = FunctionDictGetDateOrDefault::create(context);
+                break;
+            case TypeIndex::DateTime:
+                impl = FunctionDictGetDateTimeOrDefault::create(context);
+                break;
+            case TypeIndex::UUID:
+                impl = FunctionDictGetUUIDOrDefault::create(context);
+                break;
+            case TypeIndex::Decimal32:
+                impl = FunctionDictGetDecimal32OrDefault::create(context, getDecimalScale(*attribute.type));
+                break;
+            case TypeIndex::Decimal64:
+                impl = FunctionDictGetDecimal64OrDefault::create(context, getDecimalScale(*attribute.type));
+                break;
+            case TypeIndex::Decimal128:
+                impl = FunctionDictGetDecimal128OrDefault::create(context, getDecimalScale(*attribute.type));
+                break;
+            default:
+                throw Exception("Unknown dictGetOrDefault type", ErrorCodes::UNKNOWN_TYPE);
         }
-        throw Exception{"No such attribute '" + attr_name + "'", ErrorCodes::BAD_ARGUMENTS};
+
+        return attribute.type;
     }
 
     bool isDeterministic() const override { return false; }
