@@ -1414,7 +1414,7 @@ private:
         }
 
         /// We're extracting the return type from the dictionary's config, without loading the dictionary.
-        const auto & attribute = helper.getDictionaryStructure(dict_name).getAttribute(attr_name)
+        const auto & attribute = helper.getDictionaryStructure(dict_name).getAttribute(attr_name);
         switch (attribute.type.idx)
         {
             case TypeIndex::String:
