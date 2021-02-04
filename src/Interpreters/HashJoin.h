@@ -33,47 +33,38 @@ class DictionaryReader;
 namespace JoinStuff
 {
 
-/// Base class with optional flag attached that's needed to implement RIGHT and FULL JOINs.
-template <typename T, bool with_used>
-struct WithFlags;
-
-template <typename T>
-struct WithFlags<T, true> : T
+/// Flags needed to implement RIGHT and FULL JOINs.
+class JoinUsedFlags
 {
-    using Base = T;
-    using T::T;
+    std::vector<std::atomic_bool> flags;
 
-    mutable std::atomic<bool> used {};
-    void setUsed() const { used.store(true, std::memory_order_relaxed); }    /// Could be set simultaneously from different threads.
-    bool getUsed() const { return used; }
+    size_t size;
+public:
 
-    bool setUsedOnce() const
+    void resize(size_t size_)
     {
-        /// fast check to prevent heavy CAS with seq_cst order
-        if (used.load(std::memory_order_relaxed))
-            return false;
-
-        bool expected = false;
-        return used.compare_exchange_strong(expected, true);
+        size = size_;
     }
+
+    void fit()
+    {
+        if (flags.size() == size)
+            return;
+        assert(flags.empty());
+        flags = std::vector<std::atomic_bool>(size);
+    }
+
+    bool getUsedSafe(size_t i) const;
+
+    template <bool use_flags>
+    void setUsed(size_t i);
+
+    template <bool use_flags>
+    bool getUsed(size_t i);
+
+    template <bool use_flags>
+    bool setUsedOnce(size_t i);
 };
-
-template <typename T>
-struct WithFlags<T, false> : T
-{
-    using Base = T;
-    using T::T;
-
-    void setUsed() const {}
-    bool getUsed() const { return true; }
-    bool setUsedOnce() const { return true; }
-};
-
-using MappedOne =        WithFlags<RowRef, false>;
-using MappedAll =        WithFlags<RowRefList, false>;
-using MappedOneFlagged = WithFlags<RowRef, true>;
-using MappedAllFlagged = WithFlags<RowRefList, true>;
-using MappedAsof =       WithFlags<AsofRowRefs, false>;
 
 }
 
@@ -296,13 +287,11 @@ public:
         }
     };
 
-    using MapsOne =             MapsTemplate<JoinStuff::MappedOne>;
-    using MapsAll =             MapsTemplate<JoinStuff::MappedAll>;
-    using MapsOneFlagged =      MapsTemplate<JoinStuff::MappedOneFlagged>;
-    using MapsAllFlagged =      MapsTemplate<JoinStuff::MappedAllFlagged>;
-    using MapsAsof =            MapsTemplate<JoinStuff::MappedAsof>;
+    using MapsOne = MapsTemplate<RowRef>;
+    using MapsAll = MapsTemplate<RowRefList>;
+    using MapsAsof = MapsTemplate<AsofRowRefs>;
 
-    using MapsVariant = std::variant<MapsOne, MapsAll, MapsOneFlagged, MapsAllFlagged, MapsAsof>;
+    using MapsVariant = std::variant<MapsOne, MapsAll, MapsAsof>;
     using BlockNullmapList = std::deque<std::pair<const Block *, ColumnPtr>>;
 
     struct RightTableData
@@ -333,6 +322,8 @@ public:
         return data;
     }
 
+    bool isUsed(size_t off) const { return used_flags.getUsedSafe(off); }
+
 private:
     friend class NonJoinedBlockInputStream;
     friend class JoinSource;
@@ -352,6 +343,7 @@ private:
 
     /// Right table data. StorageJoin shares it between many Join objects.
     std::shared_ptr<RightTableData> data;
+    mutable JoinStuff::JoinUsedFlags used_flags;
     Sizes key_sizes;
 
     /// Block with columns from the right-side table.
